@@ -14,5 +14,6 @@ How to run:
 
 Progress
 - [x] Scanning
+- [x] AST Support
 - [ ] Parsing
 - ...

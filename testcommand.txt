@@ -1,0 +1,26 @@
+cargo run -- test.lox
+cargo run -- test2.lox
+cargo run -- --test-ast
+cargo run -- --test-parser
+
+or run cargo run to test in an interactive mode
+
+> 1 + 2 * 3
+(+ 1 (* 2 3))
+> (1 + 2) * 3  
+(* (group (+ 1 2)) 3)
+> -123 * 45.67
+(* (- 123) 45.67)
+> 1 == 2
+(== 1 2)
+> !true
+(! true)
+> "hello" + "world"
+(+ "hello" "world")
+
+> 1 + + 2
+[line 1] Parse error: Expect expression. at '+'
+> (1 + 2
+[line 1] Parse error: Expect ')' after expression. at end
+> * 5
+[line 1] Parse error: Expect expression. at '*'

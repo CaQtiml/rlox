@@ -3,12 +3,14 @@ mod scanner;
 mod error;
 mod expr;
 mod ast_printer;
+mod parser;
 
 use scanner::Scanner;
 use error::ErrorReporter;
 use expr::Expr;
 use ast_printer::AstPrinter;
 use token::{Token, TokenType, LiteralValue};
+use parser::Parser;
 use std::env;
 use std::fs;
 use std::io::{self, Write};
@@ -23,6 +25,10 @@ fn main() {
         2 => {
             if args[1] == "--test-ast" {
                 test_ast_printer();
+                return;
+            }
+            if args[1] == "--test-parser" {
+                test_parser();
                 return;
             }
             run_file(&args[1], &mut error_reporter);
@@ -74,10 +80,12 @@ fn run(source: String, error_reporter: &mut ErrorReporter) {
     
     match scanner.scan_tokens() {
         Ok(tokens) => {
-            // For now, just print the tokens
-            for token in tokens {
-                println!("{}", token);
+            let mut parser = Parser::new(tokens.clone());
+            if let Some(expr) = parser.parse(error_reporter) {
+                let mut printer = AstPrinter::new();
+                println!("{}", printer.print(&expr));
             }
+            // If parse returned None, errors were already reported
         }
         Err(errors) => {
             eprintln!("{}", errors);
@@ -121,4 +129,42 @@ fn test_ast_printer() {
     
     let result2 = printer.print(&expression2);
     println!("AST: {}", result2);
+}
+
+fn test_parser() {
+    println!("Testing Parser...");
+    
+    let test_cases = vec![
+        "1 + 2 * 3",
+        "(1 + 2) * 3", 
+        "-123 * 45.67",
+        "1 == 2 != 3",
+        "!(1 < 2)",
+        "\"hello\" + \"world\"",
+        // Error cases
+        "1 + + 2",
+        "(1 + 2",
+        "* 5",
+    ];
+    
+    for test_case in test_cases {
+        println!("\n--- Testing: {} ---", test_case);
+        let mut error_reporter = ErrorReporter::new();
+        let mut scanner = Scanner::new(test_case.to_string());
+        
+        match scanner.scan_tokens() {
+            Ok(tokens) => {
+                let mut parser = Parser::new(tokens.clone());
+                if let Some(expr) = parser.parse(&mut error_reporter) {
+                    let mut printer = AstPrinter::new();
+                    println!("Result: {}", printer.print(&expr));
+                } else {
+                    println!("Parse failed (errors reported above)");
+                }
+            }
+            Err(err) => {
+                println!("Scan error: {}", err);
+            }
+        }
+    }
 }

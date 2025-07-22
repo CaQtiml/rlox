@@ -1,0 +1,19 @@
+Var var None
+Identifier result None
+Equal = None
+Number 10 Some(Number(10.0))
+Plus + None
+Number 5 Some(Number(5.0))
+Star * None
+Number 2 Some(Number(2.0))
+Semicolon ; None
+Var var None
+Identifier flag None
+Equal = None
+Identifier x None
+BangEqual != None
+Identifier y None
+And and None
+True true Some(Boolean(true))
+Semicolon ; None
+Eof  None

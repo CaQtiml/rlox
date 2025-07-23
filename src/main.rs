@@ -4,6 +4,8 @@ mod error;
 mod expr;
 mod ast_printer;
 mod parser;
+mod interpreter;
+mod value;
 
 use scanner::Scanner;
 use error::ErrorReporter;
@@ -15,6 +17,7 @@ use std::env;
 use std::fs;
 use std::io::{self, Write};
 use std::process;
+use interpreter::Interpreter;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -29,6 +32,10 @@ fn main() {
             }
             if args[1] == "--test-parser" {
                 test_parser();
+                return;
+            }
+            if args[1] == "--test-interpreter" {
+                test_interpreter();
                 return;
             }
             run_file(&args[1], &mut error_reporter);
@@ -82,8 +89,19 @@ fn run(source: String, error_reporter: &mut ErrorReporter) {
         Ok(tokens) => {
             let mut parser = Parser::new(tokens.clone());
             if let Some(expr) = parser.parse(error_reporter) {
-                let mut printer = AstPrinter::new();
-                println!("{}", printer.print(&expr));
+                // let mut printer = AstPrinter::new();
+                // println!("{}", printer.print(&expr));
+                let mut interpreter = Interpreter::new();
+                match interpreter.interpret(&expr) {
+                    Ok(value) => println!("{}", value),
+                    Err(err) => {
+                        if let Some(runtime_err) = err.downcast_ref::<interpreter::RuntimeError>() {
+                            eprintln!("{}", runtime_err);
+                        } else {
+                            eprintln!("Runtime error: {}", err);
+                        }
+                    }
+                }
             }
             // If parse returned None, errors were already reported
         }
@@ -91,6 +109,33 @@ fn run(source: String, error_reporter: &mut ErrorReporter) {
             eprintln!("{}", errors);
             error_reporter.report(0, "", "Scanning failed");
         }
+    }
+}
+
+// Add a test function
+fn test_interpreter() {
+    println!("Testing Interpreter...");
+    
+    let test_cases = vec![
+        "1 + 2",
+        "3 * 4 - 2", 
+        "10 / 2",
+        "(1 + 2) * 3",
+        "\"hello\" + \" world\"",
+        "\"num: \" + 42",
+        "true == false",
+        "!(5 > 3)",
+        "3 >= 3",
+        "nil == nil",
+        // Error cases you can try:
+        // "\"hello\" - \"world\"",  // Should give runtime error
+        // "5 / 0",                 // Should give runtime error  
+    ];
+    
+    for test_case in test_cases {
+        println!("\n--- Evaluating: {} ---", test_case);
+        let mut error_reporter = ErrorReporter::new();
+        run(test_case.to_string(), &mut error_reporter);
     }
 }
 

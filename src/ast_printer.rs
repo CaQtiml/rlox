@@ -9,8 +9,8 @@ impl AstPrinter {
     }
 
     pub fn print(&mut self, expr: &Expr) -> String {
-        // expr.accept(self)
-        Expr::accept(expr, self)
+        expr.accept(self)
+        // Expr::accept(expr, self)
         // DON'T ADD ; at the end of return expression!
     }
 

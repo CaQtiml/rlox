@@ -38,6 +38,31 @@ impl Interpreter {
         }
         Ok(())
     }
+
+    pub fn execute_block(&mut self, statements: Vec<Stmt>) -> Result<()> {
+        // Create new environment with current one as parent
+        let current_env = std::mem::replace(&mut self.environment, Environment::new());
+        let block_env = Environment::new_with_enclosing(current_env);
+        self.environment = block_env;
+        
+        // Use a closure to ensure cleanup happens even if there's an error
+        // Executes each statement in the block using the new environment
+        // If any statement fails, the ? operator returns the error immediately
+        let result = (|| {
+            for statement in statements {
+                statement.accept(self)?;
+            }
+            Ok(())
+        })();
+
+        // Restore the parent environment
+        let block_env = std::mem::replace(&mut self.environment, Environment::new());
+        if let Some(parent) = block_env.into_enclosing() {
+            self.environment = parent;
+        }
+        
+        result
+    }
     
     fn runtime_error(&self, token: &Token, message: &str) -> anyhow::Error {
         RuntimeError {
@@ -87,6 +112,10 @@ impl StmtVisitor<Result<()>> for Interpreter {
 
         self.environment.define(name.lexeme.clone(), value);
         Ok(())
+    }
+
+    fn visit_block_stmt(&mut self, _stmt: &Stmt, statements: Vec<Stmt>) -> Result<()> {
+        self.execute_block(statements)
     }
 }
 

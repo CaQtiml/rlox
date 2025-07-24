@@ -13,6 +13,9 @@ pub enum Stmt {
         name: Token,
         initializer: Option<Box<Expr>>,
     },
+    Block {
+        statements: Vec<Stmt>
+    }
 }
 /*
 // This creates an expression statement
@@ -56,6 +59,7 @@ pub trait StmtVisitor<T> {
     fn visit_expression_stmt(&mut self, stmt: &Stmt, expression: &Expr) -> T;
     fn visit_print_stmt(&mut self, stmt: &Stmt, expression: &Expr) -> T;
     fn visit_var_stmt(&mut self, stmt: &Stmt, name: &Token, initializer: &Option<Box<Expr>>) -> T;
+    fn visit_block_stmt(&mut self, stmt: &Stmt, statements: Vec<Stmt>) -> T;
 }
 
 impl Stmt {
@@ -70,6 +74,9 @@ impl Stmt {
             },
             Stmt::Var { name, initializer } => {
                 visitor.visit_var_stmt(self, name, initializer)
+            }
+            Stmt::Block { statements } => {
+                visitor.visit_block_stmt(self, statements.clone())
             }
         }
     }
@@ -88,5 +95,9 @@ impl Stmt {
     pub fn var(name: Token, initializer: Option<Expr>) -> Self {
         // TODO: Create Var variant
         Stmt::Var { name: name, initializer: initializer.map(Box::new) }
+    }
+
+    pub fn block(statements: Vec<Stmt>) -> Self {
+        Stmt::Block { statements }
     }
 }

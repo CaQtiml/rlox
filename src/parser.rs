@@ -2,8 +2,7 @@ use crate::expr::Expr;
 use crate::stmt::Stmt;
 use crate::token::{Token, TokenType, LiteralValue};
 use crate::error::ErrorReporter;
-use anyhow::{Result, anyhow};
-use std::result::Result::{Ok, Err};
+use anyhow::{anyhow, Result};
 
 pub struct Parser {
     tokens: Vec<Token>,
@@ -57,9 +56,24 @@ impl Parser {
     fn declaration(&mut self) -> Result<Stmt> {
         if self.match_tokens(&[TokenType::Var]) { // Reminder:match_tokens already moves away from "var"
             self.var_declaration()
-        } else {
+        } 
+        else if self.match_tokens(&[TokenType::LeftBrace]){
+            Ok(Stmt::block(self.block()?))
+        }
+        else {
             self.statement()
         }
+    }
+
+    fn block(&mut self) -> Result<Vec<Stmt>> {
+        let mut statements = Vec::new();
+
+        while !self.check(&TokenType::RightBrace) && !self.is_at_end() {
+            statements.push(self.declaration()?);
+        }
+
+        self.consume(TokenType::RightBrace, "Expect '}' after block.")?;
+        Ok(statements)
     }
 
     fn statement(&mut self) -> Result<Stmt> {

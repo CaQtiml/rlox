@@ -1,1 +1,15 @@
-1 + (2 * 3)
+var global = "I am global";
+{
+    var local = "I am local";
+    print global;  // "I am global"
+    print local;   // "I am local"
+    
+    {
+        var inner = "I am inner";
+        global = "Modified global";
+        print inner;   // "I am inner"
+    }
+    // inner is gone here
+}
+print global;  // "Modified global"
+// local is gone here

@@ -1,9 +1,13 @@
 use crate::expr::{Expr, ExprVisitor};
+use crate::stmt::{Stmt, StmtVisitor};
+use crate::environment::Environment;
 use crate::token::{Token, TokenType, LiteralValue};
 use crate::value::Value;
 use anyhow::{anyhow, Ok, Result};
 
-pub struct Interpreter;
+pub struct Interpreter {
+    environment: Environment,
+}
 
 #[derive(Debug)]
 pub struct RuntimeError {
@@ -21,15 +25,18 @@ impl std::error::Error for RuntimeError {}
 
 impl Interpreter {
     pub fn new() -> Self {
-        Self
+        Self {
+            environment: Environment::new(),
+        }
     }
     
-    pub fn interpret(&mut self, expr: &Expr) -> Result<Value> {
-        // TODO: Use the visitor pattern to evaluate the expression
-        // Call expr.accept(self) and handle any runtime errors
-        expr.accept(self) 
-        // Basically peeling one layer out 
-        // and take the peeled expression to the accept function for further evaluation
+    pub fn interpret(&mut self, statements: &[Stmt]) -> Result<()> {
+        // TODO: Execute each statement
+        // Handle runtime errors gracefully
+        for statement in statements {
+            statement.accept(self)?;
+        }
+        Ok(())
     }
     
     fn runtime_error(&self, token: &Token, message: &str) -> anyhow::Error {
@@ -51,6 +58,35 @@ impl Interpreter {
             (Value::Number(l), Value::Number(r)) => Ok((*l, *r)),
             _ => Err(self.runtime_error(operator, "Operands must be numbers.")),
         }
+    }
+}
+
+impl StmtVisitor<Result<()>> for Interpreter {
+    fn visit_expression_stmt(&mut self, _stmt: &Stmt, expression: &Expr) -> Result<()> {
+        // TODO: Evaluate expression and discard result
+        expression.accept(self)?;
+        Ok(())
+    }
+
+    fn visit_print_stmt(&mut self, _stmt: &Stmt, expression: &Expr) -> Result<()> {
+        // TODO: Evaluate expression and print result
+        let value = expression.accept(self)?;
+        println!("{}", value);
+        Ok(())
+    }
+
+    fn visit_var_stmt(&mut self, _stmt: &Stmt, name: &Token, initializer: &Option<Box<Expr>>) -> Result<()> {
+        // TODO: 
+        // If initializer exists, evaluate it, otherwise use nil
+        // Define variable in environment
+        let value = if let Some(init) = initializer {
+            init.accept(self)?
+        } else {
+            Value::Nil
+        };
+
+        self.environment.define(name.lexeme.clone(), value);
+        Ok(())
     }
 }
 
@@ -158,5 +194,19 @@ impl ExprVisitor<Result<Value>> for Interpreter {
 
             _ => Err(anyhow!("Unknown binary operator: {:?}", operator.token_type)),
         }
+    }
+
+    fn visit_variable_expr(&mut self, _expr: &Expr, name: &Token) -> Result<Value> {
+        // TODO: Look up variable in environment
+        // Convert environment errors to runtime errors
+        self.environment.get(&name.lexeme)
+            .map_err(|_| self.runtime_error(name, &format!("Undefined variable '{}'.", name.lexeme)))
+    }
+
+    fn visit_assign_expr(&mut self, _expr: &Expr, name: &Token, value: &Expr) -> Result<Value> {
+        let val = value.accept(self)?;
+        self.environment.assign(&name.lexeme, val.clone())
+            .map_err(|_| self.runtime_error(name, &format!("Undefined variable '{}'.", name.lexeme)))?;
+        Ok(val)
     }
 }

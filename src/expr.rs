@@ -18,6 +18,23 @@ pub enum Expr {
     Grouping {
         expression: Box<Expr>,
     },
+    /*
+    Expr::Variable {
+        name: Token {
+            token_type: TokenType::Identifier,
+            lexeme: "x".to_string(),
+            literal: None,
+            line: 1,
+        }
+    }
+    */
+    Variable {
+        name: Token,
+    },
+    Assign {
+        name: Token,
+        value: Box<Expr>
+    }
 }
 
 // You'll need this trait for the Visitor pattern
@@ -26,6 +43,8 @@ pub trait ExprVisitor<T> {
     fn visit_unary_expr(&mut self, expr: &Expr, operator: &Token, right: &Expr) -> T;
     fn visit_literal_expr(&mut self, expr: &Expr, value: &Option<LiteralValue>) -> T;
     fn visit_grouping_expr(&mut self, expr: &Expr, expression: &Expr) -> T;
+    fn visit_variable_expr(&mut self, expr: &Expr, name: &Token) -> T;
+    fn visit_assign_expr(&mut self, expr: &Expr, name: &Token, value: &Expr) -> T;
 }
 
 impl Expr {
@@ -35,15 +54,21 @@ impl Expr {
         match self {
             Expr::Binary { left, operator, right } => {
                 visitor.visit_binary_expr(self, left, operator, right)
-            }
+            },
             Expr::Grouping { expression } => {
                 visitor.visit_grouping_expr(self, expression)
-            }
+            },
             Expr::Literal { value } =>  {
                 visitor.visit_literal_expr(self, value)
-            }
+            },
             Expr::Unary { operator, right } => {
                 visitor.visit_unary_expr(self, operator, right)
+            },
+            Expr::Variable { name } => {
+                visitor.visit_variable_expr(self, name)
+            },
+            Expr::Assign { name, value } => {
+                visitor.visit_assign_expr(self, name, value)
             }
         }
     }
@@ -65,6 +90,8 @@ impl Expr {
     }
 
     pub fn literal(value: Option<LiteralValue>) -> Self {
+        // In fact, it is 
+        // Expr::Variable { name: name }
         Expr::Literal { value }
     }
 
@@ -72,5 +99,13 @@ impl Expr {
         Expr::Grouping {
             expression: Box::new(expression),
         }
+    }
+
+    pub fn variable(name: Token) -> Self {
+        Expr::Variable { name }
+    }
+
+    pub fn assign(name: Token, value: Expr) -> Self {
+        Expr::Assign { name, value: Box::new(value) }
     }
 }

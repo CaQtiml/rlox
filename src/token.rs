@@ -86,3 +86,21 @@ impl std::fmt::Display for Token {
         write!(f, "{:?} {} {:?}", self.token_type, self.lexeme, self.literal)
     }
 }
+
+/*
+Input: var myVariable = 42;
+[
+    Token { token_type: TokenType::Var, lexeme: "var", literal: None, line: 1 },
+    Token { token_type: TokenType::Identifier, lexeme: "myVariable", literal: None, line: 1 },
+    Token { token_type: TokenType::Equal, lexeme: "=", literal: None, line: 1 },
+    Token { token_type: TokenType::Number, lexeme: "42", literal: Some(LiteralValue::Number(42.0)), line: 1 },
+    Token { token_type: TokenType::Semicolon, lexeme: ";", literal: None, line: 1 },
+]
+
+Input: print userName;
+[
+    Token { token_type: TokenType::Print, lexeme: "print", literal: None, line: 1 },
+    Token { token_type: TokenType::Identifier, lexeme: "userName", literal: None, line: 1 },
+    Token { token_type: TokenType::Semicolon, lexeme: ";", literal: None, line: 1 },
+]
+*/

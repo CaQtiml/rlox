@@ -6,6 +6,8 @@ mod ast_printer;
 mod parser;
 mod interpreter;
 mod value;
+mod stmt;
+mod environment;
 
 use scanner::Scanner;
 use error::ErrorReporter;
@@ -62,7 +64,34 @@ fn run_file(path: &str, error_reporter: &mut ErrorReporter) {
     }
 }
 
+
+fn run(source: String, error_reporter: &mut ErrorReporter) {
+    let mut scanner = Scanner::new(source);
+    
+    match scanner.scan_tokens() {
+        Ok(tokens) => {
+            let mut parser = Parser::new(tokens.clone());
+            if let Some(statements) = parser.parse(error_reporter) {
+                let mut interpreter = Interpreter::new();
+                if let Err(err) = interpreter.interpret(&statements) {
+                    if let Some(runtime_err) = err.downcast_ref::<interpreter::RuntimeError>() {
+                        eprintln!("{}", runtime_err);
+                    } else {
+                        eprintln!("Runtime error: {}", err);
+                    }
+                }
+            }
+        }
+        Err(errors) => {
+            eprintln!("{}", errors);
+            error_reporter.report(0, "", "Scanning failed");
+        }
+    }
+}
+
 fn run_prompt(error_reporter: &mut ErrorReporter) {
+    let mut interpreter = Interpreter::new(); // Create interpreter once
+    
     loop {
         print!("> ");
         io::stdout().flush().unwrap();
@@ -71,7 +100,7 @@ fn run_prompt(error_reporter: &mut ErrorReporter) {
         match io::stdin().read_line(&mut input) {
             Ok(0) => break, // EOF
             Ok(_) => {
-                run(input, error_reporter);
+                run_repl(input, error_reporter, &mut interpreter); // Pass interpreter
                 error_reporter.reset();
             }
             Err(err) => {
@@ -82,28 +111,21 @@ fn run_prompt(error_reporter: &mut ErrorReporter) {
     }
 }
 
-fn run(source: String, error_reporter: &mut ErrorReporter) {
+fn run_repl(source: String, error_reporter: &mut ErrorReporter, interpreter: &mut Interpreter) {
     let mut scanner = Scanner::new(source);
     
     match scanner.scan_tokens() {
         Ok(tokens) => {
             let mut parser = Parser::new(tokens.clone());
-            if let Some(expr) = parser.parse(error_reporter) {
-                // let mut printer = AstPrinter::new();
-                // println!("{}", printer.print(&expr));
-                let mut interpreter = Interpreter::new();
-                match interpreter.interpret(&expr) {
-                    Ok(value) => println!("{}", value),
-                    Err(err) => {
-                        if let Some(runtime_err) = err.downcast_ref::<interpreter::RuntimeError>() {
-                            eprintln!("{}", runtime_err);
-                        } else {
-                            eprintln!("Runtime error: {}", err);
-                        }
+            if let Some(statements) = parser.parse(error_reporter) {
+                if let Err(err) = interpreter.interpret(&statements) {
+                    if let Some(runtime_err) = err.downcast_ref::<interpreter::RuntimeError>() {
+                        eprintln!("{}", runtime_err);
+                    } else {
+                        eprintln!("Runtime error: {}", err);
                     }
                 }
             }
-            // If parse returned None, errors were already reported
         }
         Err(errors) => {
             eprintln!("{}", errors);
@@ -112,38 +134,29 @@ fn run(source: String, error_reporter: &mut ErrorReporter) {
     }
 }
 
-// Add a test function
 fn test_interpreter() {
-    println!("Testing Interpreter...");
+    println!("Testing Interpreter with statements...");
     
     let test_cases = vec![
-        "1 + 2",
-        "3 * 4 - 2", 
-        "10 / 2",
-        "(1 + 2) * 3",
-        "\"hello\" + \" world\"",
-        "\"num: \" + 42",
-        "true == false",
-        "!(5 > 3)",
-        "3 >= 3",
-        "nil == nil",
-        // Error cases you can try:
-        // "\"hello\" - \"world\"",  // Should give runtime error
-        // "5 / 0",                 // Should give runtime error  
+        "print \"Hello, world!\";",
+        "var a = 10;",
+        "var b = 20; print a + b;",
+        "var name = \"Alice\"; print \"Hello, \" + name + \"!\";",
+        "var x; print x;", // Should print nil
+        "1 + 2;", // Expression statement
+        "var result = 3 * 4; print result;",
     ];
     
     for test_case in test_cases {
-        println!("\n--- Evaluating: {} ---", test_case);
+        println!("\n--- Executing: {} ---", test_case);
         let mut error_reporter = ErrorReporter::new();
         run(test_case.to_string(), &mut error_reporter);
     }
 }
 
-// Test function to demonstrate AST creation and printing
 fn test_ast_printer() {
     println!("Testing AST Printer...");
     
-    // Create expression: (* (- 123) (group 45.67))
     let expression = Expr::binary(
         Expr::unary(
             Token::new(TokenType::Minus, "-".to_string(), None, 1),
@@ -157,7 +170,6 @@ fn test_ast_printer() {
     let result = printer.print(&expression);
     println!("AST: {}", result);
     
-    // Test another expression: (== (+ 1 2) (- 4 3))
     let expression2 = Expr::binary(
         Expr::binary(
             Expr::literal(Some(LiteralValue::Number(1.0))),
@@ -180,16 +192,13 @@ fn test_parser() {
     println!("Testing Parser...");
     
     let test_cases = vec![
-        "1 + 2 * 3",
-        "(1 + 2) * 3", 
-        "-123 * 45.67",
-        "1 == 2 != 3",
-        "!(1 < 2)",
-        "\"hello\" + \"world\"",
+        "print 1 + 2;",
+        "var a = 5;",
+        "print a;",
+        "1 + 2;",
         // Error cases
-        "1 + + 2",
-        "(1 + 2",
-        "* 5",
+        "var;",
+        "print",
     ];
     
     for test_case in test_cases {
@@ -200,9 +209,8 @@ fn test_parser() {
         match scanner.scan_tokens() {
             Ok(tokens) => {
                 let mut parser = Parser::new(tokens.clone());
-                if let Some(expr) = parser.parse(&mut error_reporter) {
-                    let mut printer = AstPrinter::new();
-                    println!("Result: {}", printer.print(&expr));
+                if let Some(statements) = parser.parse(&mut error_reporter) {
+                    println!("Parsed {} statements successfully", statements.len());
                 } else {
                     println!("Parse failed (errors reported above)");
                 }

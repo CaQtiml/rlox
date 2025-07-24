@@ -1,4 +1,5 @@
 use crate::expr::Expr;
+use crate::stmt::Stmt;
 use crate::token::{Token, TokenType, LiteralValue};
 use crate::error::ErrorReporter;
 use anyhow::{Result, anyhow};
@@ -31,24 +32,103 @@ impl Parser {
         }
     }
 
-    pub fn parse(&mut self, error_reporter: &mut ErrorReporter) -> Option<Expr> {
-        match self.expression() {
-            Ok(expr) => Some(expr),
-            Err(err) => {
-                if let Some(parse_err) = err.downcast_ref::<ParseError>() {
-                    error_reporter.report(parse_err.line, "", &parse_err.message);
-                } else {
-                    error_reporter.report(0, "", &err.to_string());
+    pub fn parse(&mut self, error_reporter: &mut ErrorReporter) -> Option<Vec<Stmt>> {
+        // TODO: Parse multiple statements instead of single expression
+        // Return Vec<Stmt> instead of Expr
+        let mut statements = Vec::new();
+        while !self.is_at_end() {
+            match self.declaration() {
+                Ok(stmt) => statements.push(stmt),
+                Err(err) => {
+                    if let Some(parse_err) = err.downcast_ref::<ParseError>() {
+                        error_reporter.report(parse_err.line, "", &parse_err.message);
+                    }
+                    else {
+                        error_reporter.report(0, "", &err.to_string());
+                    }
+                    self.synchronize();
                 }
-                None // Return of Option when there is no value.
             }
         }
+        if statements.is_empty() {None}
+        else{ Some(statements) }
+    }
+
+    fn declaration(&mut self) -> Result<Stmt> {
+        if self.match_tokens(&[TokenType::Var]) { // Reminder:match_tokens already moves away from "var"
+            self.var_declaration()
+        } else {
+            self.statement()
+        }
+    }
+
+    fn statement(&mut self) -> Result<Stmt> {
+        if self.match_tokens(&[TokenType::Print]) {
+            self.print_statement()
+        } else {
+            self.expression_statement()
+        }
+    }
+
+    fn print_statement(&mut self) -> Result<Stmt> {
+        // TODO: 
+        // Parse expression after "print"
+        // Consume semicolon
+        // Return Stmt::print()
+        let value = self.expression()?;
+        self.consume(TokenType::Semicolon, "Expect ';' after expression.")?;
+        Ok(Stmt::print(value))
+    }
+
+    fn var_declaration(&mut self) -> Result<Stmt> {
+        // TODO:
+        // Expect identifier for variable name
+        // If "=" found, parse initializer expression
+        // Consume semicolon
+        // Return Stmt::var()
+        let name = self.consume(TokenType::Identifier, "Expect variable name.")?.clone();
+        
+        let initializer = if self.match_tokens(&[TokenType::Equal]) {
+            Some(self.expression()?)
+        } else {
+            None
+        };
+
+        self.consume(TokenType::Semicolon, "Expect ';' after variable declaration.")?;
+        Ok(Stmt::var(name.clone(), initializer))
+    }
+
+    fn expression_statement(&mut self) -> Result<Stmt> {
+        // TODO:
+        // Parse expression
+        // Consume semicolon  
+        // Return Stmt::expression()
+        let expr = self.expression()?;
+        self.consume(TokenType::Semicolon, "Expect ';' after value.")?;
+        Ok(Stmt::expression(expr))
+    }
+
+    fn assignment(&mut self) -> Result<Expr> {
+        let expr = self.equality()?; // check the left side first
+
+        if self.match_tokens(&[TokenType::Equal]) { // if the right side is "=", do this
+            let equals = self.previous().clone();
+            let value = self.assignment()?;
+
+            if let Expr::Variable { name } = expr {
+                return Ok(Expr::assign(name, value));
+            }
+
+            return Err(self.error(&equals, "Invalid assignment target."));
+        }
+
+        Ok(expr) // If not, do this
     }
 
     // Grammar rules - each becomes a method
     fn expression(&mut self) -> Result<Expr> {
         // TODO: Call equality()
-        self.equality()
+        self.assignment()
     }
 
     fn equality(&mut self) -> Result<Expr> {
@@ -116,6 +196,11 @@ impl Parser {
     fn primary(&mut self) -> Result<Expr> {
         // TODO: Handle literals, identifiers, and grouping
         // This is where you handle the "leaves" of the expression tree
+
+        if self.match_tokens(&[TokenType::Identifier]) {
+            return Ok(Expr::variable(self.previous().clone()));
+        }
+
         if self.match_tokens(&[TokenType::False]) {
             return Ok(Expr::literal(Some(LiteralValue::Boolean(false))));
         }

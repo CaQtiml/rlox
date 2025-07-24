@@ -1,2 +1,10 @@
-var result = 10 + 5 * 2;
-var flag = x != y and true;
+print "Hello from a .lox file!";
+var name = "Alice";
+var age = 25;
+print "Name: " + name;
+print "Age: " + age;
+
+var x = 10;
+var y = 20;
+var sum = x + y;
+print "Sum: " + sum;

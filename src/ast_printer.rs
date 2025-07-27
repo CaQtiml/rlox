@@ -55,4 +55,8 @@ impl ExprVisitor<String> for AstPrinter {
     fn visit_assign_expr(&mut self, _expr: &Expr, name: &Token, value: &Expr) -> String {
         format!("(= {} {})", name.lexeme, value.accept(self))
     }
+
+    fn visit_logical_expr(&mut self, _expr: &Expr, left: &Expr, operator: &Token, right: &Expr) -> String {
+        self.parenthesize(&operator.lexeme, &[left, right])
+    }
 }

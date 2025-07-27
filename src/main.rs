@@ -40,10 +40,14 @@ fn main() {
                 test_interpreter();
                 return;
             }
+            if args[1] == "--test-control-flow" {
+                test_control_flow();
+                return;
+            }
             run_file(&args[1], &mut error_reporter);
         }
         _ => {
-            println!("Usage: lox [script] or lox --test-ast");
+            println!("Usage: lox [script] or lox --test-ast or lox --test-control-flow");
             process::exit(64);
         }
     }
@@ -63,7 +67,6 @@ fn run_file(path: &str, error_reporter: &mut ErrorReporter) {
         }
     }
 }
-
 
 fn run(source: String, error_reporter: &mut ErrorReporter) {
     let mut scanner = Scanner::new(source);
@@ -134,6 +137,38 @@ fn run_repl(source: String, error_reporter: &mut ErrorReporter, interpreter: &mu
     }
 }
 
+fn test_control_flow() {
+    println!("Testing Control Flow...");
+    
+    let test_cases = vec![
+        // If statements
+        "if (true) print \"hello\";",
+        "if (false) print \"not printed\"; else print \"else executed\";",
+        "if (1 > 2) print \"impossible\"; else print \"math works\";",
+        
+        // While loops
+        "var i = 0; while (i < 3) { print i; i = i + 1; }",
+        
+        // Logical operators (simple cases)
+        "print true and false;",
+        "print true or false;",
+        "var a = true; var b = false; print a and b;",
+        "var c = false; var d = true; print c or d;",
+        
+        // Nested control flow
+        "var x = 5; if (x > 3) { var y = x * 2; while (y > 0) { print y; y = y - 1; } }",
+        
+        // Complex logical expressions
+        "var a = true; var b = false; if (a and !b) print \"logic works\";",
+    ];
+    
+    for test_case in test_cases {
+        println!("\n--- Testing: {} ---", test_case);
+        let mut error_reporter = ErrorReporter::new();
+        run(test_case.to_string(), &mut error_reporter);
+    }
+}
+
 fn test_interpreter() {
     println!("Testing Interpreter with statements...");
     
@@ -196,6 +231,8 @@ fn test_parser() {
         "var a = 5;",
         "print a;",
         "1 + 2;",
+        "if (true) print \"hello\";",
+        "while (false) print \"never\";",
         // Error cases
         "var;",
         "print",

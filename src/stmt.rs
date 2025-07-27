@@ -15,6 +15,15 @@ pub enum Stmt {
     },
     Block {
         statements: Vec<Stmt>
+    },
+    If {
+        condition: Box<Expr>,
+        then_branch: Box<Stmt>,
+        else_branch: Option<Box<Stmt>>
+    },
+    While {
+        condition: Box<Expr>,
+        body: Box<Stmt>
     }
 }
 /*
@@ -60,6 +69,8 @@ pub trait StmtVisitor<T> {
     fn visit_print_stmt(&mut self, stmt: &Stmt, expression: &Expr) -> T;
     fn visit_var_stmt(&mut self, stmt: &Stmt, name: &Token, initializer: &Option<Box<Expr>>) -> T;
     fn visit_block_stmt(&mut self, stmt: &Stmt, statements: Vec<Stmt>) -> T;
+    fn visit_if_stmt(&mut self, stmt: &Stmt, condition: &Expr, then_branch: &Stmt, else_branch: &Option<Box<Stmt>>) -> T;
+    fn visit_while_stmt(&mut self, stmt: &Stmt, condition: &Expr, body: &Stmt) -> T;
 }
 
 impl Stmt {
@@ -77,6 +88,12 @@ impl Stmt {
             }
             Stmt::Block { statements } => {
                 visitor.visit_block_stmt(self, statements.clone())
+            }
+            Stmt::If { condition, then_branch, else_branch } => {
+                visitor.visit_if_stmt(self, condition, then_branch, else_branch)
+            }
+            Stmt::While { condition, body } => {
+                visitor.visit_while_stmt(self, condition, body)
             }
         }
     }
@@ -99,5 +116,20 @@ impl Stmt {
 
     pub fn block(statements: Vec<Stmt>) -> Self {
         Stmt::Block { statements }
+    }
+
+    pub fn if_stmt(condition: Expr, then_branch: Stmt, else_branch: Option<Stmt>) -> Self {
+        Stmt::If {
+            condition: Box::new(condition),
+            then_branch: Box::new(then_branch),
+            else_branch: else_branch.map(Box::new),
+        }
+    }
+
+    pub fn while_stmt(condition: Expr, body: Stmt) -> Self {
+        Stmt::While {
+            condition: Box::new(condition),
+            body: Box::new(body),
+        }
     }
 }

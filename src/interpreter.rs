@@ -41,7 +41,7 @@ impl Interpreter {
 
     pub fn execute_block(&mut self, statements: Vec<Stmt>) -> Result<()> {
         // Create new environment with current one as parent
-        let current_env = std::mem::replace(&mut self.environment, Environment::new());
+        let current_env = std::mem::replace(&mut self.environment, Environment::new()); // take a value out of dest -> put src into dest -> return the old value that was in dest
         let block_env = Environment::new_with_enclosing(current_env);
         self.environment = block_env;
         
@@ -116,6 +116,36 @@ impl StmtVisitor<Result<()>> for Interpreter {
 
     fn visit_block_stmt(&mut self, _stmt: &Stmt, statements: Vec<Stmt>) -> Result<()> {
         self.execute_block(statements)
+    }
+
+    fn visit_if_stmt(&mut self, _stmt: &Stmt, 
+                                condition: &Expr, 
+                                then_branch: &Stmt, 
+                                else_branch: &Option<Box<Stmt>>) -> Result<()> {
+        // TODO: 
+        // 1. Evaluate the condition
+        // 2. Check if it's truthy using Value::is_truthy()
+        // 3. Execute then_branch if true, else_branch if false and it exists
+        let condition = condition.accept(self)?;
+        if condition.is_truthy() {
+            then_branch.accept(self)?;
+        }
+        else if let Some(else_stmt) = else_branch {
+            else_stmt.accept(self)?;
+        }
+        
+        Ok(())
+    }
+
+    fn visit_while_stmt(&mut self, _stmt: &Stmt, condition: &Expr, body: &Stmt) -> Result<()> {
+        // TODO:
+        // 1. Loop while condition is truthy
+        // 2. Execute body in each iteration
+        // Be careful with Rust's ownership - you might need to use references
+        while condition.accept(self)?.is_truthy() {
+            body.accept(self)?;
+        }
+        Ok(())
     }
 }
 
@@ -237,5 +267,35 @@ impl ExprVisitor<Result<Value>> for Interpreter {
         self.environment.assign(&name.lexeme, val.clone())
             .map_err(|_| self.runtime_error(name, &format!("Undefined variable '{}'.", name.lexeme)))?;
         Ok(val)
+    }
+
+    fn visit_logical_expr(&mut self, _expr: &Expr, left: &Expr, operator: &Token, right: &Expr) -> Result<Value> {
+        // TODO: Implement short-circuiting logic
+        // For "or": if left is truthy, return left, otherwise return right
+        // For "and": if left is falsy, return left, otherwise return right
+        
+        let left_value = left.accept(self)?;
+        
+        match operator.token_type {
+            TokenType::Or => {
+                if left_value.is_truthy() {
+                    // TODO: Return left_value (short-circuit)
+                    Ok(left_value)
+                } else {
+                    // TODO: Evaluate and return right
+                    right.accept(self)
+                }
+            }
+            TokenType::And => {
+                if !left_value.is_truthy() {
+                    // TODO: Return left_value (short-circuit)  
+                    Ok(left_value)
+                } else {
+                    // TODO: Evaluate and return right
+                    right.accept(self)
+                }
+            }
+            _ => Err(anyhow!("Unknown logical operator: {:?}", operator.token_type)),
+        }
     }
 }

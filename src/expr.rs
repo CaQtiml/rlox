@@ -34,7 +34,12 @@ pub enum Expr {
     Assign {
         name: Token,
         value: Box<Expr>
-    }
+    },
+    Logical { // Don't use Binary because we want to shortcut the case (True or ...) and (False and ...)
+        left: Box<Expr>,
+        operator: Token,
+        right: Box<Expr>,
+    },
 }
 
 // You'll need this trait for the Visitor pattern
@@ -45,6 +50,7 @@ pub trait ExprVisitor<T> {
     fn visit_grouping_expr(&mut self, expr: &Expr, expression: &Expr) -> T;
     fn visit_variable_expr(&mut self, expr: &Expr, name: &Token) -> T;
     fn visit_assign_expr(&mut self, expr: &Expr, name: &Token, value: &Expr) -> T;
+    fn visit_logical_expr(&mut self, expr: &Expr, left: &Expr, operator: &Token, right: &Expr) -> T;
 }
 
 impl Expr {
@@ -69,6 +75,9 @@ impl Expr {
             },
             Expr::Assign { name, value } => {
                 visitor.visit_assign_expr(self, name, value)
+            },
+            Expr::Logical { left, operator, right } => {
+                visitor.visit_logical_expr(self, left, operator, right)
             }
         }
     }
@@ -107,5 +116,13 @@ impl Expr {
 
     pub fn assign(name: Token, value: Expr) -> Self {
         Expr::Assign { name, value: Box::new(value) }
+    }
+
+    pub fn logical(left: Expr, operator: Token, right: Expr) -> Self {
+        Expr::Logical {
+            left: Box::new(left),
+            operator,
+            right: Box::new(right),
+        }
     }
 }

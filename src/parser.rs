@@ -76,10 +76,52 @@ impl Parser {
         Ok(statements)
     }
 
+    fn if_statement(&mut self) -> Result<Stmt> {
+        // TODO: Implement this
+        // Hint: consume "(", parse condition, consume ")", parse then branch
+        // Check for "else" and parse else branch if present
+        self.consume(TokenType::LeftParen, "Expect '(' after 'if'.")?;
+        let condition = self.expression()?;
+        self.consume(TokenType::RightParen, "Expect ')' after if condition.")?;
+
+        let then_branch = self.statement()?; 
+        // Don't forget that a block statement is ONE statement. containing several statements inside
+        let else_branch = if self.match_tokens(&[TokenType::Else]) {
+            Some(self.statement()?)
+        } else {
+            None
+        };
+
+        Ok(Stmt::if_stmt(condition, then_branch, else_branch))
+    }
+
+    fn while_statement(&mut self) -> Result<Stmt> {
+        // TODO: Implement this
+        // Similar to if, but simpler - just condition and body
+        self.consume(TokenType::LeftParen, "Expect '(' after 'while'.")?;
+        let condition = self.expression()?;
+        self.consume(TokenType::RightParen, "Expect ')' after while condition.")?;
+        let body = self.statement()?;
+
+        Ok(Stmt::while_stmt(condition, body))
+    }
+
     fn statement(&mut self) -> Result<Stmt> {
         if self.match_tokens(&[TokenType::Print]) {
             self.print_statement()
-        } else {
+        } 
+        else if self.match_tokens(&[TokenType::If]) {
+            // TODO: Call self.if_statement()
+            self.if_statement()
+        } 
+        else if self.match_tokens(&[TokenType::While]) {
+            // TODO: Call self.while_statement()
+            self.while_statement()
+        }
+        else if self.match_tokens(&[TokenType::LeftBrace]) {
+            Ok(Stmt::block(self.block()?))
+        }
+        else {
             self.expression_statement()
         }
     }
@@ -123,7 +165,7 @@ impl Parser {
     }
 
     fn assignment(&mut self) -> Result<Expr> {
-        let expr = self.equality()?; // check the left side first
+        let expr = self.or()?; // check the left side first
 
         if self.match_tokens(&[TokenType::Equal]) { // if the right side is "=", do this
             let equals = self.previous().clone();
@@ -137,6 +179,30 @@ impl Parser {
         }
 
         Ok(expr) // If not, do this
+    }
+
+    fn or(&mut self) -> Result<Expr> {
+        // TODO: Implement logical OR with short-circuiting
+        // Pattern: similar to equality() but for "or" operators
+        let mut expr = self.and()?;
+        while self.match_tokens(&[TokenType::Or]) {
+            let operator = self.previous().clone();
+            let right = self.and()?;
+            expr = Expr::logical(expr, operator, right);
+        }
+        Ok(expr)
+    }
+
+    fn and(&mut self) -> Result<Expr> {
+        // TODO: Implement logical AND
+        // Call equality() for the operands
+        let mut expr = self.equality()?;
+        while self.match_tokens(&[TokenType::And]) {
+            let operator = self.previous().clone();
+            let right = self.equality()?;
+            expr = Expr::logical(expr, operator, right);
+        }
+        Ok(expr)
     }
 
     // Grammar rules - each becomes a method

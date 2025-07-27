@@ -148,6 +148,14 @@ fn test_control_flow() {
         
         // While loops
         "var i = 0; while (i < 3) { print i; i = i + 1; }",
+
+        // For loops
+        "for (var i = 0; i < 3; i = i + 1) print i;",
+        "for (var i = 1; i < 10; i = i *2) print i;",
+        "for (var i = 0; i < 3; i = i + 1) { print \"Count: \"; print i; }",
+
+        // For loop with just condition
+        "var j = 0; for (; j < 2; j = j + 1) print j;",
         
         // Logical operators (simple cases)
         "print true and false;",
@@ -157,6 +165,9 @@ fn test_control_flow() {
         
         // Nested control flow
         "var x = 5; if (x > 3) { var y = x * 2; while (y > 0) { print y; y = y - 1; } }",
+
+        // Nested for loops
+        "for (var i = 1; i <= 2; i = i + 1) { for (var j = 1; j <= 2; j = j + 1) { print i * j; } }",
         
         // Complex logical expressions
         "var a = true; var b = false; if (a and !b) print \"logic works\";",
@@ -231,6 +242,7 @@ fn test_parser() {
         "var a = 5;",
         "print a;",
         "1 + 2;",
+        "1 + 2;2+3;",
         "if (true) print \"hello\";",
         "while (false) print \"never\";",
         // Error cases

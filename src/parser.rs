@@ -21,6 +21,21 @@ impl std::fmt::Display for ParseError {
     }
 }
 
+// Expression: a piece of code that evaluates to a value. It represents a computation that produces a result.
+// Expression Statement: an expression followed by a semicolon that turns it into a statement. The value is evaluated but then discarded.
+
+/*
+When to use expression()
+if (x > 5) { ... }       // Condition needs the boolean value
+var y = x + 1;           // Initializer needs the computed value
+while (count < 10) { ... } // Condition needs the boolean value
+
+When to use expression_statement()
+x = 5;                   // Standalone assignment
+calculate();             // Standalone function call  
+3 + 4;                   // Standalone calculation (unusual but valid)
+*/
+
 impl std::error::Error for ParseError {}
 
 impl Parser {
@@ -106,6 +121,68 @@ impl Parser {
         Ok(Stmt::while_stmt(condition, body))
     }
 
+    fn for_statement(&mut self) -> Result<Stmt> {
+        self.consume(TokenType::LeftParen, "Expect '(' after 'for'.")?;
+
+        // check if the for loop has an initializer: for(var i=0;...)
+        let initializer = if self.match_tokens(&[TokenType::Semicolon]){ 
+            // for (; i < 10; i = i + 1) { ... }
+            // If the token following the ( is a semicolon then the initializer has been omitted.
+            None
+        }
+        else if self.match_tokens(&[TokenType::Var]){
+            // for (var i = 0; i < 10; i = i + 1) { ... }
+            Some(self.var_declaration()?)
+        } 
+        else{
+            // for (i = 0; i < 10; i = i + 1) { ... } // i is declared elsewhere
+            Some(self.expression_statement()?)
+        };
+
+        // check the loop condition: for(...;i<10;...)
+        let condition = if !self.check(&TokenType::Semicolon) {
+            Some(self.expression()?)
+        } else {
+            None
+        };
+        self.consume(TokenType::Semicolon, "Expect ';' after loop condition.")?;
+
+        // check the loop increment
+        let increment = if !self.check(&TokenType::RightParen) {
+            Some(self.expression()?)
+        } else {
+            None
+        };
+        self.consume(TokenType::RightParen, "Expect ')' after for clauses.")?;
+
+        let mut body = self.statement()?;
+
+        // Do the transformation from for to while loop
+        // Start from creating a loop block -> pack a loop block with the condition 
+        // -> pack the while loop with initialization
+
+        // start from creating a "block" containing loop body following by increment
+        if let Some(increment_expr) = increment {
+            body = Stmt::block(vec![
+                body,
+                Stmt::expression(increment_expr),
+            ]);
+        }
+        
+        // Create the while loop by packing a condition and body together
+        let condition_expr = condition.unwrap_or_else(|| {
+            Expr::literal(Some(LiteralValue::Boolean(true))) // No condition means "while true {...}"
+        });
+        body = Stmt::while_stmt(condition_expr, body);
+
+        // If there's an initializer, wrap everything in a block
+        if let Some(init) = initializer {
+            body = Stmt::block(vec![init, body]);
+        }
+
+        Ok(body)
+    }
+
     fn statement(&mut self) -> Result<Stmt> {
         if self.match_tokens(&[TokenType::Print]) {
             self.print_statement()
@@ -120,6 +197,9 @@ impl Parser {
         }
         else if self.match_tokens(&[TokenType::LeftBrace]) {
             Ok(Stmt::block(self.block()?))
+        }
+        else if self.match_tokens(&[TokenType::For]){
+            self.for_statement()
         }
         else {
             self.expression_statement()

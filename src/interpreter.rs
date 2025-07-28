@@ -1,9 +1,18 @@
+/*
+Interpreter.rs: Evaluation/Execution
+
+Input: AST nodes
+Output: Runtime values and side effects (printing, variable storage, etc.)
+Walks the tree using visitor pattern and executes
+*/
+
 use crate::expr::{Expr, ExprVisitor};
 use crate::stmt::{Stmt, StmtVisitor};
 use crate::environment::Environment;
 use crate::token::{Token, TokenType, LiteralValue};
 use crate::value::Value;
-use anyhow::{anyhow, Ok, Result};
+use anyhow::{anyhow, Result};
+use crate::function::{LoxFunction, FunctionDeclaration};
 
 pub struct Interpreter {
     environment: Environment,
@@ -15,13 +24,27 @@ pub struct RuntimeError {
     pub message: String,
 }
 
+#[derive(Debug)]
+pub struct ReturnValue {
+    pub value: Value,
+}
+
 impl std::fmt::Display for RuntimeError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "[line {}] Runtime Error: {}", self.token.line, self.message)
     }
 }
 
+impl std::fmt::Display for ReturnValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Return: {}", self.value)
+    }
+}
+
 impl std::error::Error for RuntimeError {}
+// We implement error typeclass to ReturnValue because we want "?" to immediately exit the execution.
+// Since "return" should stop executing the remaining statements in the function.
+impl std::error::Error for ReturnValue {}
 
 impl Interpreter {
     pub fn new() -> Self {
@@ -84,6 +107,60 @@ impl Interpreter {
             _ => Err(self.runtime_error(operator, "Operands must be numbers.")),
         }
     }
+
+    fn call_function(&mut self, function: &LoxFunction, arguments: Vec<Value>) -> Result<Value> {
+        // TODO: Execute function call
+        // 1. Create new environment with function's closure as parent
+        // 2. Bind parameters to arguments in new environment
+        // 3. Execute function body in new environment  
+        // 4. Handle return values (catch ReturnValue errors)
+        // 5. Restore previous environment
+        // 6. Return function result (or nil if no return)
+
+        let current_env = self.environment.clone();
+        let call_env = Environment::new_with_enclosing(self.environment.clone());
+        self.environment = call_env;
+
+        /*
+        fun add(a, b) {  // params = ["a", "b"]
+            return a + b;
+        }
+
+        add(5, 10);      // arguments = [5, 10]
+         */
+        for (param, arg) in function.declaration().params.iter().zip(arguments.iter()) {
+            self.environment.define(param.lexeme.clone(), arg.clone());
+        }
+        
+        // Use Closure because "?" has "return" behind the scene
+        // If we dont use closure and one statement cant be executed, "call_function" will return
+        // error value immediately. The result is that the old enviroment restoration done later in this 
+        // "call_function" will not be done because "?" has already returned something on a behalf of
+        // this function.
+        // Closure will make "?" returning its error to the variable "result" instead. The "call_function"
+        // can still run until the end.
+        let result: anyhow::Result<Value> = (|| {
+            for statement in &function.declaration().body {
+                statement.accept(self)?;
+            }
+            Ok(Value::Nil)
+        })();
+
+        let call_env = std::mem::replace(&mut self.environment, current_env);
+
+        // If the error is ReturnValue error, it is in fact not the error. It works properly and returns the value.
+        // Otherwise, it is the actual error.
+        match result {
+            Err(err) => {
+                if let Some(return_val) = err.downcast_ref::<ReturnValue>() {
+                    Ok(return_val.value.clone())
+                } else {
+                    Err(err)
+                }
+            }
+            Ok(_) => Ok(Value::Nil),
+        }
+    }
 }
 
 impl StmtVisitor<Result<()>> for Interpreter {
@@ -126,7 +203,9 @@ impl StmtVisitor<Result<()>> for Interpreter {
         // 1. Evaluate the condition
         // 2. Check if it's truthy using Value::is_truthy()
         // 3. Execute then_branch if true, else_branch if false and it exists
-        let condition = condition.accept(self)?;
+        let condition = condition.accept(self)?; 
+        // This "self" implements both ExprVisitor and StmtVisitor, so it can automatically
+        // coerce itself to the right trait obj type to "condition"
         if condition.is_truthy() {
             then_branch.accept(self)?;
         }
@@ -146,6 +225,38 @@ impl StmtVisitor<Result<()>> for Interpreter {
             body.accept(self)?;
         }
         Ok(())
+    }
+
+    fn visit_function_stmt(&mut self, _stmt: &Stmt, name: &Token, params: &[Token], body: &[Stmt]) -> Result<()> {
+        // TODO: Create function object and store in environment
+        // 1. Create FunctionDeclaration
+        // 2. Capture current environment as closure
+        // 3. Create LoxFunction
+        // 4. Store in environment with function name
+        let declaration = FunctionDeclaration {
+            name: name.clone(),
+            params: params.to_vec(),
+            body: body.to_vec(),
+        };
+        let function = LoxFunction::new(declaration, self.environment.clone());
+        self.environment.define(name.lexeme.clone(), Value::Function(function));
+        Ok(())
+    }
+    
+    fn visit_return_stmt(&mut self, _stmt: &Stmt, keyword: &Token, value: &Option<Box<Expr>>) -> Result<()> {
+        // TODO: Evaluate return value and "throw" it as a special error
+        // 1. Evaluate value (or use nil if None)
+        // 2. Create ReturnValue error
+        // 3. Return the error (this will unwind the stack)
+        let val = if let Some(v) = value {
+            v.accept(self)?
+        } else {
+            Value::Nil
+        };
+        
+        // Not an actual error. We only need to bypass the remaining statements
+        // "?" after "accept(self)" immediately exits the loop
+        Err(ReturnValue { value: val }.into())
     }
 }
 
@@ -296,6 +407,32 @@ impl ExprVisitor<Result<Value>> for Interpreter {
                 }
             }
             _ => Err(anyhow!("Unknown logical operator: {:?}", operator.token_type)),
+        }
+    }
+
+    fn visit_call_expr(&mut self, _expr: &Expr, callee: &Expr, paren: &Token, arguments: &[Expr]) -> Result<Value> {
+        // TODO: This is the big one! Function calls
+        // 1. Evaluate callee (should be a function)
+        // 2. Evaluate all arguments
+        // 3. Check arity (argument count)
+        // 4. Call the function
+
+        // Simple case: add is callee_value
+        // More complex case: add(1,2) is callee_value
+        // Error case: f(1,2) when f is defined by var f = 'a';
+        let callee_value = callee.accept(self)?;
+        let mut args = Vec::new();
+        for argument in arguments {
+            args.push(argument.accept(self)?);
+        }
+        if let Value::Function(function) = callee_value {
+            if arguments.len() != function.arity() {
+                return Err(self.runtime_error(paren, 
+                    &format!("Expected {} arguments but got {}.", function.arity(), arguments.len())));
+            }
+            self.call_function(&function, args)
+        } else {
+            Err(self.runtime_error(paren, "Can only call functions."))
         }
     }
 }

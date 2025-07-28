@@ -24,6 +24,20 @@ pub enum Stmt {
     While {
         condition: Box<Expr>,
         body: Box<Stmt>
+    },
+    /*
+    fun add(a, b) {    // <-- This creates a Stmt::Function
+        return a + b;
+    }
+     */
+    Function { // When declaring a function
+        name: Token,
+        params: Vec<Token>,
+        body: Vec<Stmt>,
+    },
+    Return {
+        keyword: Token,
+        value: Option<Box<Expr>>,
     }
 }
 /*
@@ -71,8 +85,12 @@ pub trait StmtVisitor<T> {
     fn visit_block_stmt(&mut self, stmt: &Stmt, statements: Vec<Stmt>) -> T;
     fn visit_if_stmt(&mut self, stmt: &Stmt, condition: &Expr, then_branch: &Stmt, else_branch: &Option<Box<Stmt>>) -> T;
     fn visit_while_stmt(&mut self, stmt: &Stmt, condition: &Expr, body: &Stmt) -> T;
+    fn visit_function_stmt(&mut self, stmt: &Stmt, name: &Token, params: &[Token], body: &[Stmt]) -> T;
+    fn visit_return_stmt(&mut self, stmt: &Stmt, keyword: &Token, value: &Option<Box<Expr>>) -> T;
 }
-
+// Visitor Pattern
+// Calling accept(...) in the interpreter means executing statements
+// "Execute this statement (side effects)"
 impl Stmt {
     pub fn accept<T>(&self, visitor: &mut dyn StmtVisitor<T>) -> T {
         // TODO: Match on self and call appropriate visitor method
@@ -94,6 +112,12 @@ impl Stmt {
             }
             Stmt::While { condition, body } => {
                 visitor.visit_while_stmt(self, condition, body)
+            }
+            Stmt::Function { name, params, body } => {
+                visitor.visit_function_stmt(self, name, params, body)
+            }
+            Stmt::Return { keyword, value } => {
+                visitor.visit_return_stmt(self, keyword, value)
             }
         }
     }
@@ -130,6 +154,17 @@ impl Stmt {
         Stmt::While {
             condition: Box::new(condition),
             body: Box::new(body),
+        }
+    }
+
+    pub fn function(name: Token, params: Vec<Token>, body: Vec<Stmt>) -> Self {
+        Stmt::Function { name, params, body }
+    }
+
+    pub fn return_stmt(keyword: Token, value: Option<Expr>) -> Self {
+        Stmt::Return {
+            keyword,
+            value: value.map(Box::new),
         }
     }
 }

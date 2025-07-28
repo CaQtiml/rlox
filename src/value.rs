@@ -1,4 +1,5 @@
 use std::fmt;
+use crate::function::LoxFunction;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
@@ -6,6 +7,7 @@ pub enum Value {
     String(String),
     Boolean(bool),
     Nil,
+    Function(LoxFunction),
 }
 
 impl Value {
@@ -28,6 +30,7 @@ impl Value {
             (Value::Number(a), Value::Number(b)) => a==b,
             (Value::String(a), Value::String(b)) => a==b,
             (Value::Boolean(a), Value::Boolean(b)) => a==b,
+            (Value::Function(a), Value::Function(b)) => a == b,
             _ => false,
         }
     }
@@ -47,6 +50,7 @@ impl std::fmt::Display for Value {
             },
             Value::String(s) => write!(f, "{}", s),
             Value::Boolean(b) => write!(f, "{}", b),
+            Value::Function(func) => write!(f, "<fn {}>", func.name()),
             Value::Nil => write!(f, "nil"),
         }
     }

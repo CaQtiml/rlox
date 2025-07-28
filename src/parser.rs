@@ -1,3 +1,11 @@
+/*
+Parser.rs: Syntactic Analysis
+
+Input: Stream of tokens
+Output: Abstract Syntax Tree (AST nodes like Expr, Stmt)
+Builds tree structure according to grammar rules
+*/
+
 use crate::expr::Expr;
 use crate::stmt::Stmt;
 use crate::token::{Token, TokenType, LiteralValue};
@@ -69,7 +77,10 @@ impl Parser {
     }
 
     fn declaration(&mut self) -> Result<Stmt> {
-        if self.match_tokens(&[TokenType::Var]) { // Reminder:match_tokens already moves away from "var"
+        if self.match_tokens(&[TokenType::Fun]) {
+            self.function("function")
+        }
+        else if self.match_tokens(&[TokenType::Var]) { // Reminder:match_tokens already moves away from "var"
             self.var_declaration()
         } 
         else if self.match_tokens(&[TokenType::LeftBrace]){
@@ -78,6 +89,29 @@ impl Parser {
         else {
             self.statement()
         }
+    }
+
+    fn function(&mut self, _kind: &str) -> Result<Stmt> { // _kind is kept to follow the book. Unused now!
+        let name = self.consume(TokenType::Identifier, "Expect function name.")?.clone();
+        self.consume(TokenType::LeftParen, "Expect '(' after function name.")?;
+
+        let mut parameters = Vec::new();
+        if !self.check(&TokenType::RightParen){
+            loop{
+                if parameters.len() >= 255 {
+                    return Err(self.error(self.peek(), "Can't have more than 255 parameters."));
+                }   
+                parameters.push(self.consume(TokenType::Identifier, "Expect parameter name.")?.clone());
+                if !self.match_tokens(&[TokenType::Comma]) {
+                    break;
+                }
+            }
+        }
+        self.consume(TokenType::RightParen, "Expect ')' after parameters.")?;
+        self.consume(TokenType::LeftBrace, "Expect '{' before function body.")?;
+        let body = self.block()?;
+
+        Ok(Stmt::function(name, parameters, body))
     }
 
     fn block(&mut self) -> Result<Vec<Stmt>> {
@@ -184,7 +218,10 @@ impl Parser {
     }
 
     fn statement(&mut self) -> Result<Stmt> {
-        if self.match_tokens(&[TokenType::Print]) {
+        if self.match_tokens(&[TokenType::Return]) {
+            self.return_statement()
+        }
+        else if self.match_tokens(&[TokenType::Print]) {
             self.print_statement()
         } 
         else if self.match_tokens(&[TokenType::If]) {
@@ -204,6 +241,17 @@ impl Parser {
         else {
             self.expression_statement()
         }
+    }
+
+    fn return_statement(&mut self) -> Result<Stmt> {
+        let keyword = self.previous().clone(); // go back to take the keyword "return"
+        let value = if !self.check(&TokenType::Semicolon) {
+            Some(self.expression()?)
+        } else {
+            None
+        };
+        self.consume(TokenType::Semicolon, "Expect ';' after return value.")?;
+        Ok(Stmt::return_stmt(keyword, value))
     }
 
     fn print_statement(&mut self) -> Result<Stmt> {
@@ -350,7 +398,40 @@ impl Parser {
             let mut right_expr = self.unary()?;
             return Ok(Expr::unary(operator, right_expr));
         }
-        else { return self.primary();}
+        else { return self.call();}
+    }
+
+    fn call(&mut self) -> Result<Expr>{ // can handle f(), g()(), h(3)()(), ...
+        let mut expr = self.primary()?; // get function name
+
+        loop {
+            if self.match_tokens(&[TokenType::LeftParen]){ // Use match_token() because it advances the pointer, unlike check()
+                expr = self.finish_call(expr)?;
+            } else{
+                break;
+            }
+        }
+
+        Ok(expr)
+    }
+
+    fn finish_call(&mut self, callee: Expr) -> Result<Expr> {
+        let mut arguments = Vec::new();
+        
+        if !self.check(&TokenType::RightParen) {
+            loop {
+                if arguments.len() >= 255 {
+                    return Err(self.error(self.peek(), "Can't have more than 255 arguments."));
+                } // Just to conform with Java version
+                arguments.push(self.expression()?);
+                if !self.match_tokens(&[TokenType::Comma]) {
+                    break;
+                }
+            }
+        }
+
+        let paren = self.consume(TokenType::RightParen, "Expect ')' after arguments.")?.clone();
+        Ok(Expr::call(callee, paren, arguments))
     }
 
     fn primary(&mut self) -> Result<Expr> {

@@ -40,6 +40,11 @@ pub enum Expr {
         operator: Token,
         right: Box<Expr>,
     },
+    Call { // Call an existing function. Ex. add(1,2) where add function is declared somewhere already
+        callee: Box<Expr>,
+        paren: Token, // For error reporting ("line 5: wrong arity")
+        arguments: Vec<Expr>
+    }
 }
 
 // You'll need this trait for the Visitor pattern
@@ -51,8 +56,12 @@ pub trait ExprVisitor<T> {
     fn visit_variable_expr(&mut self, expr: &Expr, name: &Token) -> T;
     fn visit_assign_expr(&mut self, expr: &Expr, name: &Token, value: &Expr) -> T;
     fn visit_logical_expr(&mut self, expr: &Expr, left: &Expr, operator: &Token, right: &Expr) -> T;
+    fn visit_call_expr(&mut self, expr: &Expr, callee: &Expr, paren: &Token, arguments: &[Expr]) -> T;
 }
 
+// Visitor Pattern
+// Calling accept(...) in the interpreter means evaluate expressions
+// "Give me the value of this expression"
 impl Expr {
     pub fn accept<T>(&self, visitor: &mut dyn ExprVisitor<T>) -> T {
         // TODO: Implement this method
@@ -78,6 +87,9 @@ impl Expr {
             },
             Expr::Logical { left, operator, right } => {
                 visitor.visit_logical_expr(self, left, operator, right)
+            }
+            Expr::Call { callee, paren, arguments } => {
+                visitor.visit_call_expr(self, callee, paren, arguments)
             }
         }
     }
@@ -124,5 +136,9 @@ impl Expr {
             operator,
             right: Box::new(right),
         }
+    }
+
+    pub fn call(callee: Expr, paren: Token, arguments: Vec<Expr>) -> Self {
+        Expr::Call { callee: Box::new(callee), paren, arguments }
     }
 }

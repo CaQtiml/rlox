@@ -12,10 +12,17 @@ The way I learn from this book is that for each chapter
 - I implement a functionality for these functions by myself.
 
 How to run:
-1. `cargo run -- test.lox`
+- `cargo run -- test.lox` to test from `.lox` file
+- `cargo run` to test interactively
+- `cargo run -- --test-control-flow` to test from a determined flag.
 
 Progress
 - [x] Scanning
 - [x] AST Support
-- [ ] Parsing
+- [x] Parsing
+- [x] Evaluating Expression
+- [x] Statements and State
+- [x] Control Flow
+- [x] Functions - May still contain some bugs. I'm not sure.
+- [] Resolving and Binding
 - ...

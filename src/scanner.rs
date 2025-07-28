@@ -1,3 +1,10 @@
+/*
+Scanner.rs: Lexical Analysis
+
+Input: Raw source code string ("var x = 42;")
+Output: Stream of tokens ([VAR, IDENTIFIER("x"), EQUAL, NUMBER(42), SEMICOLON])
+Breaks text into meaningful chunks
+*/
 use crate::token::{LiteralValue, Token, TokenType};
 use std::collections::HashMap;
 use anyhow::{Result, anyhow};

@@ -59,4 +59,14 @@ impl ExprVisitor<String> for AstPrinter {
     fn visit_logical_expr(&mut self, _expr: &Expr, left: &Expr, operator: &Token, right: &Expr) -> String {
         self.parenthesize(&operator.lexeme, &[left, right])
     }
+    
+    fn visit_call_expr(&mut self, _expr: &Expr, callee: &Expr, _paren: &Token, arguments: &[Expr]) -> String {
+        let mut result = format!("(call {}", callee.accept(self));
+        for arg in arguments {
+            result.push(' ');
+            result.push_str(&arg.accept(self));
+        }
+        result.push(')');
+        result
+    }
 }

@@ -1,0 +1,5 @@
+var i=0;
+for(var i=10;i<=100;i=i+1){
+    print i;
+    i = i*2+1;
+}

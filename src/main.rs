@@ -8,6 +8,7 @@ mod interpreter;
 mod value;
 mod stmt;
 mod environment;
+mod function;
 
 use scanner::Scanner;
 use error::ErrorReporter;

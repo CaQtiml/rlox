@@ -13,6 +13,7 @@ Global Environment          ← Root of the chain
 │   ├── local = "I'm local"
 │   ├── enclosing = Some(Global Environment)  ← Points to parent
 */
+#[derive(Debug, Clone)]
 pub struct Environment {
     enclosing: Option<Box<Environment>>, // Parent Environment
     values: HashMap<String, Value>,

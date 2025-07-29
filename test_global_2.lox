@@ -1,0 +1,18 @@
+var global_var = "I'm global";
+
+fun outer() {
+    var outer_var = "I'm in outer";
+    
+    fun inner() {
+        print global_var;  // Can access this
+        print outer_var;   // Can access this too
+        // No inner_var is declared here
+    }
+    
+    return inner;
+}
+
+var my_func = outer();
+my_func();
+
+// When inner is declared, function.closure() captures: {global_var: "I'm global", outer_var: "I'm in outer"}

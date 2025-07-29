@@ -13,8 +13,10 @@ use crate::token::{Token, TokenType, LiteralValue};
 use crate::value::Value;
 use anyhow::{anyhow, Result};
 use crate::function::{LoxFunction, FunctionDeclaration};
+use crate::native::NativeFunction;
 
 pub struct Interpreter {
+    globals: Environment,
     environment: Environment,
 }
 
@@ -48,8 +50,14 @@ impl std::error::Error for ReturnValue {}
 
 impl Interpreter {
     pub fn new() -> Self {
+        let mut globals = Environment::new();
+        
+        // Define native functions
+        globals.define("clock".to_string(), Value::NativeFunction(NativeFunction::Clock));
+        
         Self {
-            environment: Environment::new(),
+            globals: globals.clone(),
+            environment: globals,
         }
     }
     
@@ -108,7 +116,7 @@ impl Interpreter {
         }
     }
 
-    fn call_function(&mut self, function: &LoxFunction, arguments: Vec<Value>) -> Result<Value> {
+    pub fn call_lox_function(&mut self, function: &LoxFunction, arguments: Vec<Value>) -> Result<Value> {
         // TODO: Execute function call
         // 1. Create new environment with function's closure as parent
         // 2. Bind parameters to arguments in new environment
@@ -118,7 +126,16 @@ impl Interpreter {
         // 6. Return function result (or nil if no return)
 
         let current_env = self.environment.clone();
-        let call_env = Environment::new_with_enclosing(self.environment.clone());
+        let mut call_env = Environment::new_with_enclosing(function.closure().clone());
+        
+        // When a function is declared, it captures the current environment as its "closure". 
+        // But at the time of declaration, the function hasn't been added to the environment yet, 
+        // so the function's closure doesn't contain itself.
+        // This line manually adds the function to its own call environment, 
+        // so when it looks up its own name for recursion, it can find itself.
+        call_env.define(function.name().to_string(), Value::Function(function.clone()));
+        
+        // replaces the interpreter's current environment with the function's call environment
         self.environment = call_env;
 
         /*
@@ -146,7 +163,9 @@ impl Interpreter {
             Ok(Value::Nil)
         })();
 
-        let call_env = std::mem::replace(&mut self.environment, current_env);
+        // restores the original environment, 
+        // so the interpreter continues executing in the correct context after the function returns.
+        let _call_env = std::mem::replace(&mut self.environment, current_env);
 
         // If the error is ReturnValue error, it is in fact not the error. It works properly and returns the value.
         // Otherwise, it is the actual error.
@@ -238,12 +257,21 @@ impl StmtVisitor<Result<()>> for Interpreter {
             params: params.to_vec(),
             body: body.to_vec(),
         };
+        
+        // Define the function in the environment first with a placeholder
+        // This makes the name available for recursive calls
+        self.environment.define(name.lexeme.clone(), Value::Nil);
+        
+        // Now create the function with the environment that includes the function name
         let function = LoxFunction::new(declaration, self.environment.clone());
+        
+        // Replace the placeholder with the actual function
         self.environment.define(name.lexeme.clone(), Value::Function(function));
+        
         Ok(())
     }
     
-    fn visit_return_stmt(&mut self, _stmt: &Stmt, keyword: &Token, value: &Option<Box<Expr>>) -> Result<()> {
+    fn visit_return_stmt(&mut self, _stmt: &Stmt, _keyword: &Token, value: &Option<Box<Expr>>) -> Result<()> {
         // TODO: Evaluate return value and "throw" it as a special error
         // 1. Evaluate value (or use nil if None)
         // 2. Create ReturnValue error
@@ -425,14 +453,23 @@ impl ExprVisitor<Result<Value>> for Interpreter {
         for argument in arguments {
             args.push(argument.accept(self)?);
         }
-        if let Value::Function(function) = callee_value {
-            if arguments.len() != function.arity() {
-                return Err(self.runtime_error(paren, 
-                    &format!("Expected {} arguments but got {}.", function.arity(), arguments.len())));
+
+        match callee_value {
+            Value::Function(function) => {
+                if arguments.len() != function.arity() {
+                    return Err(self.runtime_error(paren, 
+                        &format!("Expected {} arguments but got {}.", function.arity(), arguments.len())));
+                }
+                self.call_lox_function(&function, args)
             }
-            self.call_function(&function, args)
-        } else {
-            Err(self.runtime_error(paren, "Can only call functions."))
+            Value::NativeFunction(function) => {
+                if arguments.len() != function.arity() {
+                    return Err(self.runtime_error(paren, 
+                        &format!("Expected {} arguments but got {}.", function.arity(), arguments.len())));
+                }
+                function.call(self, args)
+            }
+            _ => Err(self.runtime_error(paren, "Can only call functions and classes."))
         }
     }
 }

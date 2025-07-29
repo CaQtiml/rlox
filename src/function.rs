@@ -5,7 +5,7 @@ use crate::environment::Environment;
 #[derive(Debug, Clone)]
 pub struct LoxFunction {
     declaration: FunctionDeclaration,
-    closure: Environment,
+    closure: Environment, // Capture the environment at declaration time
 }
 
 #[derive(Debug, Clone)]  

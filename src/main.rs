@@ -9,6 +9,7 @@ mod value;
 mod stmt;
 mod environment;
 mod function;
+mod native;
 
 use scanner::Scanner;
 use error::ErrorReporter;
@@ -43,6 +44,10 @@ fn main() {
             }
             if args[1] == "--test-control-flow" {
                 test_control_flow();
+                return;
+            }
+            if args[1] == "--test-functions" {
+                test_functions();
                 return;
             }
             run_file(&args[1], &mut error_reporter);
@@ -269,5 +274,71 @@ fn test_parser() {
                 println!("Scan error: {}", err);
             }
         }
+    }
+}
+
+fn test_functions() {
+    println!("Testing Functions...");
+    
+    let test_cases = vec![
+        // Basic function declaration and call
+        "fun sayHi(first, last) { print \"Hi, \" + first + \" \" + last + \"!\"; } sayHi(\"Dear\", \"Reader\");",
+        
+        // Function with return value
+        "fun add(a, b) { return a + b; } print add(1, 2);",
+        
+        // Function without explicit return (should return nil)
+        "fun noReturn() { print \"no return\"; } print noReturn();",
+        
+        // Empty return
+        "fun earlyReturn() { return; print \"this won't print\"; } print earlyReturn();",
+        
+        // Native function
+        "print clock();",
+        
+        // Function with local variables
+        "fun count(n) { var i = 1; while (i <= n) { print i; i = i + 1; } } count(3);",
+        
+        // Recursive function (factorial)
+        "fun factorial(n) { if (n <= 1) return 1; return n * factorial(n - 1); } print factorial(5);",
+        
+        // Fibonacci
+        "fun fib(n) { if (n <= 1) return n; return fib(n - 2) + fib(n - 1); } print fib(8);",
+        
+        // Function scope and closures
+        "var a = \"global\"; { fun showA() { print a; } showA(); var a = \"block\"; showA(); }",
+        
+        // Function parameters shadow globals
+        "var a = \"global\"; fun showA(a) { print a; } showA(\"parameter\");",
+        
+        // Functions are first-class values
+        "fun makeFunction() { fun localFunction() { print \"I am local!\"; } return localFunction; } var fn = makeFunction(); fn();",
+        
+        // Clock timing test
+        "var start = clock(); for (var i = 0; i < 1000; i = i + 1) { } var end = clock(); print \"Time elapsed: \"; print end - start;",
+        
+        // Error cases (these should produce runtime errors)
+        // "fun test() { } test(1);", // Wrong arity
+        // "var notAFunction = \"hello\"; notAFunction();", // Not callable
+    ];
+    
+    for test_case in test_cases {
+        println!("\n--- Testing: {} ---", test_case);
+        let mut error_reporter = ErrorReporter::new();
+        run(test_case.to_string(), &mut error_reporter);
+    }
+    
+    // Test error cases separately
+    println!("\n--- Testing Error Cases ---");
+    
+    let error_cases = vec![
+        "fun test() { } test(1);", // Wrong arity
+        "var notAFunction = \"hello\"; notAFunction();", // Not callable
+    ];
+    
+    for error_case in error_cases {
+        println!("\n--- Testing Error: {} ---", error_case);
+        let mut error_reporter = ErrorReporter::new();
+        run(error_case.to_string(), &mut error_reporter);
     }
 }

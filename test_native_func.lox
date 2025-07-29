@@ -1,0 +1,11 @@
+fun fibonacci(n) {
+    if (n <= 1) return n;
+    return fibonacci(n - 2) + fibonacci(n - 1);
+}
+
+var start = clock();
+print fibonacci(20);
+var end = clock();
+print "Elapsed time: " + (end - start);
+
+// clock() is a native function

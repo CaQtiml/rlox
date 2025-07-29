@@ -1,13 +1,15 @@
 use std::fmt;
 use crate::function::LoxFunction;
+use crate::native::NativeFunction;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug)]
 pub enum Value {
     Number(f64),
     String(String),
     Boolean(bool),
     Nil,
     Function(LoxFunction),
+    NativeFunction(NativeFunction),
 }
 
 impl Value {
@@ -31,6 +33,7 @@ impl Value {
             (Value::String(a), Value::String(b)) => a==b,
             (Value::Boolean(a), Value::Boolean(b)) => a==b,
             (Value::Function(a), Value::Function(b)) => a == b,
+            (Value::NativeFunction(a), Value::NativeFunction(b)) => a.name() == b.name(),
             _ => false,
         }
     }
@@ -52,6 +55,36 @@ impl std::fmt::Display for Value {
             Value::Boolean(b) => write!(f, "{}", b),
             Value::Function(func) => write!(f, "<fn {}>", func.name()),
             Value::Nil => write!(f, "nil"),
+            Value::NativeFunction(func) => write!(f, "<native fn {}>", func.name()),
+        }
+    }
+}
+
+// Implement Clone manually
+impl Clone for Value {
+    fn clone(&self) -> Self {
+        match self {
+            Value::Number(n) => Value::Number(*n),
+            Value::String(s) => Value::String(s.clone()),
+            Value::Boolean(b) => Value::Boolean(*b),
+            Value::Nil => Value::Nil,
+            Value::Function(f) => Value::Function(f.clone()),
+            Value::NativeFunction(nf) => Value::NativeFunction(nf.clone())
+        }
+    }
+}
+
+// Implement PartialEq manually  
+impl PartialEq for Value {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Value::Number(a), Value::Number(b)) => a == b,
+            (Value::String(a), Value::String(b)) => a == b,
+            (Value::Boolean(a), Value::Boolean(b)) => a == b,
+            (Value::Nil, Value::Nil) => true,
+            (Value::Function(a), Value::Function(b)) => a == b,
+            (Value::NativeFunction(a), Value::NativeFunction(b)) => a.name() == b.name(),
+            _ => false,
         }
     }
 }

@@ -1,0 +1,11 @@
+var x = "global";
+
+fun test() {
+    print x;  // Should print "global"
+}
+
+{
+    var x = "block";  // Different x!
+    test();  // Should still print "global", not "block"
+    // So, we don't need self.environment to append to function.closure() 
+}

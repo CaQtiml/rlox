@@ -12,9 +12,11 @@ The way I learn from this book is that for each chapter
 - I implement a functionality for these functions by myself.
 
 How to run:
-- `cargo run -- test.lox` to test from `.lox` file
+- `cargo run -- test.lox` or `cargo run -- <file_name.lox>`to test from `.lox` file
 - `cargo run` to test interactively
 - `cargo run -- --test-control-flow` to test from a determined flag.
+
+A language document has not been written yet, but some examples can be found from example scripts (xxx.lox).
 
 Progress
 - [x] Scanning
@@ -24,5 +26,5 @@ Progress
 - [x] Statements and State
 - [x] Control Flow
 - [x] Functions - May still contain some bugs. I'm not sure.
-- [] Resolving and Binding
+- [ ] Resolving and Binding
 - ...

@@ -1,0 +1,10 @@
+var k = 10;
+
+fun make_adder(base) {
+    fun adder(n) {
+        return base + n + k;
+    }
+    return adder;
+}
+
+print make_adder(1)(2);

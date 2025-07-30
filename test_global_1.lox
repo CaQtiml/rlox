@@ -9,3 +9,9 @@ fun test() {
     test();  // Should still print "global", not "block"
     // So, we don't need self.environment to append to function.closure() 
 }
+
+var a = "outer";
+{
+  var a = "inner";
+  print a;
+}

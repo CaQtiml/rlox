@@ -11,3 +11,5 @@ var counter = makeCounter();
 print counter();  // 1
 print counter();  // 2
 print counter();  // 3
+
+// Current code still produces a wrong answer.

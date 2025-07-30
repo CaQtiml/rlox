@@ -13,9 +13,12 @@ Global Environment          ← Root of the chain
 │   ├── local = "I'm local"
 │   ├── enclosing = Some(Global Environment)  ← Points to parent
 */
+
+pub type EnvId = usize;
+
 #[derive(Debug, Clone)]
 pub struct Environment {
-    enclosing: Option<Box<Environment>>, // Parent Environment
+    enclosing: Option<EnvId>, // Parent Environment
     values: HashMap<String, Value>,
 }
 
@@ -28,47 +31,80 @@ impl Environment {
         }
     }
 
-    pub fn new_with_enclosing(enclosing: Environment) -> Self {
+    pub fn new_with_enclosing(enclosing: EnvId) -> Self {
         Self {
-            enclosing: Some(Box::new(enclosing)),
+            enclosing: Some(enclosing),
             values: HashMap::new(),
         }
     }
+}
 
-    pub fn into_enclosing(self) -> Option<Environment> {
-        self.enclosing.map(|boxed| *boxed)
-    }
+// This is the "parking lot" that holds all environments
+#[derive(Debug)]
+pub struct EnvironmentArena {
+    environments: Vec<Environment>, // All environments stored here
+}
 
-    pub fn define(&mut self, name: String, value: Value) {
-        // TODO: Store variable (no error if already exists - globals can be redefined)
-        // println!("DEBUG: Storing variable '{}' with value {:?}", name, value);
-        self.values.insert(name, value);
-    }
-
-    pub fn assign(&mut self, name: &str, value: Value) -> Result<()> {
-        if self.values.contains_key(name) {
-            self.values.insert(name.to_string(), value);
-            Ok(())
-        } else if let Some(enclosing) = &mut self.enclosing {
-            enclosing.assign(name, value)
-        } else {
-            Err(anyhow!("Undefined variable '{}'.", name))
+impl EnvironmentArena {
+    pub fn new() -> Self {
+        Self {
+            environments: Vec::new(),
         }
     }
 
-    pub fn get(&self, name: &str) -> Result<Value> {
-        // TODO: Get variable value, return error if undefined
-        // Hint: Use anyhow! macro for error
-        // println!("DEBUG: Looking up variable '{}', available: {:?}", name, self.values.keys().collect::<Vec<_>>());
-        
-        if let Some(value) = self.values.get(name) { // don't confuse HashMap's get and Environment's get
-            Ok(value.clone())
+    // Create a new environment and return its ID (parking spot number)
+    pub fn create_env(&mut self) -> EnvId {
+        let id = self.environments.len(); // Next available spot
+        self.environments.push(Environment::new());
+        id // Return the spot number
+    }
+
+    // Create a new environment with a parent, return its ID
+    pub fn create_env_with_enclosing(&mut self, enclosing: EnvId) -> EnvId {
+        let id = self.environments.len();
+        self.environments.push(Environment::new_with_enclosing(enclosing));
+        id
+    }
+
+    // Define a variable in a specific environment (by ID)
+    pub fn define(&mut self, env_id: EnvId, name: String, value: Value) {
+        self.environments[env_id].values.insert(name, value);
+    }
+
+    // Assign to a variable, walking up the chain if needed
+    pub fn assign(&mut self, env_id: EnvId, name: &str, value: Value) -> Result<()> {
+        let mut current = env_id;
+        loop {
+            // Check current environment
+            if self.environments[current].values.contains_key(name) {
+                self.environments[current].values.insert(name.to_string(), value);
+                return Ok(());
+            }
+            
+            // Move to parent environment
+            if let Some(parent) = self.environments[current].enclosing {
+                current = parent;
+            } else {
+                return Err(anyhow!("Undefined variable '{}'.", name));
+            }
         }
-        else if let Some(enclosing) = &self.enclosing {
-            enclosing.get(name)
-        }
-        else {
-            Err(anyhow!("Undefined variable '{}'.", name))
+    }
+
+    // Get a variable's value, walking up the chain if needed
+    pub fn get(&self, env_id: EnvId, name: &str) -> Result<Value> {
+        let mut current = env_id;
+        loop {
+            // Check current environment
+            if let Some(value) = self.environments[current].values.get(name) {
+                return Ok(value.clone());
+            }
+            
+            // Move to parent environment
+            if let Some(parent) = self.environments[current].enclosing {
+                current = parent;
+            } else {
+                return Err(anyhow!("Undefined variable '{}'.", name));
+            }
         }
     }
 }

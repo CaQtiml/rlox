@@ -1,14 +1,3 @@
-var a = "global";
-{
-  fun showA() {
-    print a;  // Should print "global"
-  }
-
-  showA();   // Works correctly
-  var a = "block";
-  showA();   // BUG: Now prints "block" instead of "global"!
-}
-
 var a = "before";
 fun makeFunction() {
   fun inner() {

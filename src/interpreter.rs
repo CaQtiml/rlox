@@ -8,7 +8,7 @@ Walks the tree using visitor pattern and executes
 
 use crate::expr::{Expr, ExprVisitor};
 use crate::stmt::{Stmt, StmtVisitor};
-use crate::environment::Environment;
+use crate::environment::{Environment, EnvId, EnvironmentArena};
 use crate::token::{Token, TokenType, LiteralValue};
 use crate::value::Value;
 use anyhow::{anyhow, Result};
@@ -16,8 +16,9 @@ use crate::function::{LoxFunction, FunctionDeclaration};
 use crate::native::NativeFunction;
 
 pub struct Interpreter {
-    globals: Environment,
-    environment: Environment,
+    arena: EnvironmentArena,  // The "parking lot" for all environments
+    globals: EnvId,           // ID of global environment
+    environment: EnvId,       // ID of current environment
 }
 
 #[derive(Debug)]
@@ -50,14 +51,16 @@ impl std::error::Error for ReturnValue {}
 
 impl Interpreter {
     pub fn new() -> Self {
-        let mut globals = Environment::new();
+        let mut arena = EnvironmentArena::new();
+        let globals = arena.create_env(); // Create global environment, get its ID
         
-        // Define native functions
-        globals.define("clock".to_string(), Value::NativeFunction(NativeFunction::Clock));
+        // Define native functions in the global environment
+        arena.define(globals, "clock".to_string(), Value::NativeFunction(NativeFunction::Clock));
         
         Self {
-            globals: globals.clone(),
-            environment: globals,
+            arena,
+            globals,
+            environment: globals, // Start in global scope
         }
     }
     
@@ -71,10 +74,9 @@ impl Interpreter {
     }
 
     pub fn execute_block(&mut self, statements: Vec<Stmt>) -> Result<()> {
-        // Create new environment with current one as parent
-        let current_env = std::mem::replace(&mut self.environment, Environment::new()); // take a value out of dest -> put src into dest -> return the old value that was in dest
-        let block_env = Environment::new_with_enclosing(current_env);
-        self.environment = block_env;
+        let current_env = self.environment; // Remember current environment ID
+        let block_env = self.arena.create_env_with_enclosing(current_env); // Create new block environment
+        self.environment = block_env; // Switch to block environment
         
         // Use a closure to ensure cleanup happens even if there's an error
         // Executes each statement in the block using the new environment
@@ -86,12 +88,7 @@ impl Interpreter {
             Ok(())
         })();
 
-        // Restore the parent environment
-        let block_env = std::mem::replace(&mut self.environment, Environment::new());
-        if let Some(parent) = block_env.into_enclosing() {
-            self.environment = parent;
-        }
-        
+        self.environment = current_env; // Restore previous environment
         result
     }
     
@@ -125,37 +122,21 @@ impl Interpreter {
         // 5. Restore previous environment
         // 6. Return function result (or nil if no return)
 
-        let current_env = self.environment.clone();
-        let mut call_env = Environment::new_with_enclosing(function.closure().clone());
+        let current_env = self.environment; // Remember current environment
         
-        // When a function is declared, it captures the current environment as its "closure". 
-        // But at the time of declaration, the function hasn't been added to the environment yet, 
-        // so the function's closure doesn't contain itself.
-        // This line manually adds the function to its own call environment, 
-        // so when it looks up its own name for recursion, it can find itself.
-        call_env.define(function.name().to_string(), Value::Function(function.clone()));
+        // Create new environment with function's closure as parent
+        let call_env = self.arena.create_env_with_enclosing(function.closure());
         
-        // replaces the interpreter's current environment with the function's call environment
-        self.environment = call_env;
-
-        /*
-        fun add(a, b) {  // params = ["a", "b"]
-            return a + b;
-        }
-
-        add(5, 10);      // arguments = [5, 10]
-         */
+        // Add function to its own environment for recursion
+        self.arena.define(call_env, function.name().to_string(), Value::Function(function.clone()));
+        
+        // Bind parameters to arguments
         for (param, arg) in function.declaration().params.iter().zip(arguments.iter()) {
-            self.environment.define(param.lexeme.clone(), arg.clone());
+            self.arena.define(call_env, param.lexeme.clone(), arg.clone());
         }
         
-        // Use Closure because "?" has "return" behind the scene
-        // If we dont use closure and one statement cant be executed, "call_function" will return
-        // error value immediately. The result is that the old enviroment restoration done later in this 
-        // "call_function" will not be done because "?" has already returned something on a behalf of
-        // this function.
-        // Closure will make "?" returning its error to the variable "result" instead. The "call_function"
-        // can still run until the end.
+        self.environment = call_env; // Switch to function's environment
+
         let result: anyhow::Result<Value> = (|| {
             for statement in &function.declaration().body {
                 statement.accept(self)?;
@@ -163,12 +144,8 @@ impl Interpreter {
             Ok(Value::Nil)
         })();
 
-        // restores the original environment, 
-        // so the interpreter continues executing in the correct context after the function returns.
-        let _call_env = std::mem::replace(&mut self.environment, current_env);
+        self.environment = current_env; // Restore previous environment
 
-        // If the error is ReturnValue error, it is in fact not the error. It works properly and returns the value.
-        // Otherwise, it is the actual error.
         match result {
             Err(err) => {
                 if let Some(return_val) = err.downcast_ref::<ReturnValue>() {
@@ -206,7 +183,7 @@ impl StmtVisitor<Result<()>> for Interpreter {
             Value::Nil
         };
 
-        self.environment.define(name.lexeme.clone(), value);
+        self.arena.define(self.environment, name.lexeme.clone(), value);
         Ok(())
     }
 
@@ -258,16 +235,11 @@ impl StmtVisitor<Result<()>> for Interpreter {
             body: body.to_vec(),
         };
         
-        // Define the function in the environment first with a placeholder
-        // This makes the name available for recursive calls
-        self.environment.define(name.lexeme.clone(), Value::Nil);
+        // Create function with current environment as closure (just store the ID!)
+        let function = LoxFunction::new(declaration, self.environment);
         
-        // Now create the function with the environment that includes the function name
-        let function = LoxFunction::new(declaration, self.environment.clone());
-        
-        // Replace the placeholder with the actual function
-        self.environment.define(name.lexeme.clone(), Value::Function(function));
-        
+        // Define function in current environment
+        self.arena.define(self.environment, name.lexeme.clone(), Value::Function(function));
         Ok(())
     }
     
@@ -397,13 +369,13 @@ impl ExprVisitor<Result<Value>> for Interpreter {
     fn visit_variable_expr(&mut self, _expr: &Expr, name: &Token) -> Result<Value> {
         // TODO: Look up variable in environment
         // Convert environment errors to runtime errors
-        self.environment.get(&name.lexeme)
+        self.arena.get(self.environment, &name.lexeme)
             .map_err(|_| self.runtime_error(name, &format!("Undefined variable '{}'.", name.lexeme)))
     }
 
     fn visit_assign_expr(&mut self, _expr: &Expr, name: &Token, value: &Expr) -> Result<Value> {
         let val = value.accept(self)?;
-        self.environment.assign(&name.lexeme, val.clone())
+        self.arena.assign(self.environment, &name.lexeme, val.clone())
             .map_err(|_| self.runtime_error(name, &format!("Undefined variable '{}'.", name.lexeme)))?;
         Ok(val)
     }

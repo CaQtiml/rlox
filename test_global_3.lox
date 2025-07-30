@@ -1,10 +1,10 @@
 var a = "global";
 {
   fun showA() {
-    print a;
+    print a;  // Should print "global"
   }
 
-  showA();
+  showA();   // Works correctly
   var a = "block";
-  showA();
+  showA();   // BUG: Now prints "block" instead of "global"!
 }

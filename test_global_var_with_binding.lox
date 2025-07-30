@@ -1,9 +1,0 @@
-var a = "global";
-{
-  fun showA() {
-    print a;  // Should this print "global" or "local"?
-  }
-  showA();  // Prints "global" 
-  var a = "local";
-  showA();  // Still prints "global" (closure captured the environment at declaration time)
-}

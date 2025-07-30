@@ -25,6 +25,18 @@ Progress
 - [x] Evaluating Expression
 - [x] Statements and State
 - [x] Control Flow
-- [x] Functions - May still contain some bugs. I'm not sure.
+- [x] Functions - May still contain some bugs. I'm not sure. But the current interpreter uses a dynamic scoping, which will be fixed in the next chapter.
 - [ ] Resolving and Binding
 - ...
+
+Note to myself: I use Git on Windows System
+
+If you want to navigate to the result of each chapter, you can use
+```
+git checkout <commit-hash>
+```
+
+If you want to navigate to the most recent commit, use
+```
+git checkout master
+```
